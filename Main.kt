@@ -1,72 +1,110 @@
 package converter
-import java.util.*
 
-val s = Scanner(System.`in`)
+enum class Units(val names: List<String>, val value: Double, val type: Char) {
+    METER(listOf("meters", "meter", "m"), 1.0, 'd'),
+    KILOMETER(listOf("kilometers", "kilometer", "km"), 1000.0, 'd'),
+    CENTIMETER(listOf("centimeters", "centimeter", "cm"), 0.01, 'd'),
+    MILLIMETER(listOf("millimeters", "millimeter", "mm"), 0.001, 'd'),
+    MILE(listOf("miles", "mile", "mi"), 1609.35, 'd'),
+    YARD(listOf("yards", "yard", "yd"), 0.9144, 'd'),
+    FOOT(listOf("feet", "foot", "ft"), 0.3048, 'd'),
+    INCH(listOf("inches", "inch", "in"), 0.0254, 'd'),
 
-val distance = listOf("meters", "meter", "m", "kilometer", "kilometers", "km",
-    "centimeters", "centimeter", "cm", "millimeters", "millimeter", "mm",
-    "miles", "mile", "mi", "yards", "yard", "yd", "feet", "foot", "ft", "inches", "inch", "in")
-val distanceValue = listOf(1.0, 1000.0, 0.01, 0.001, 1609.35, 0.9144, 0.3048, 0.0254)
-val weight = listOf("grams", "gram", "g", "kilograms", "kilogram", "kg",
-    "milligrams", "milligram", "mg", "pounds", "pound", "lb", "ounces", "ounce", "oz")
-val weightValue = listOf(1.0, 1000.0, 0.001, 453.592, 28.3495)
+    GRAM(listOf("grams", "gram", "g"), 1.0, 'w'),
+    KILOGRAM(listOf("kilograms", "kilogram", "kg"), 1000.0, 'w'),
+    MILLIGRAM(listOf("milligrams", "milligram", "mg"), 0.001, 'w'),
+    POUND(listOf("pounds", "pound", "lb"), 453.592, 'w'),
+    OUNCE(listOf("ounces", "ounce", "oz"), 28.3495, 'w'),
 
-data class Data(var inputValue: Double,
-                var inputUnit: String,
-                var outputValue: Double,
-                var outputUnit: String)
+    CELCIUS(listOf("degrees celsius", "degree celsius", "celsius", "dc", "c"), 0.0, 't'),
+    FAHRENHEIT(listOf("degrees fahrenheit", "degree fahrenheit", "fahrenheit", "df", "f"), 0.0, 't'),
+    KELVIN(listOf("kelvins", "kelvin", "k"), 0.0, 't'),
 
-fun convertUnit(inputValue: Double, inputUnit: String, outputUnit: String, inverse: Boolean = false): Data {
-    var iUnit = inputUnit
-    var oUnit = outputUnit
-    var outputValue = 0.0
-    when (inputUnit) {
-        in distance -> {
-            val indexIn = distance.indexOf(inputUnit) / 3
-            val indexOut = distance.indexOf(outputUnit) / 3
-            outputValue = inputValue * if (!inverse) distanceValue[indexIn] else (1.0 / distanceValue[indexOut])
-            iUnit = if (inputValue.isUnit()) distance[indexIn * 3 + 1] else distance[indexIn * 3]
-            oUnit = if (outputValue.isUnit()) distance[indexOut * 3 + 1] else distance[indexOut * 3]
+    ERROR(listOf("???"), 0.0, 'e');
+
+    companion object {
+        fun returnEnum(input: String): Units {
+            for (element in values()) {
+                if (input in element.names) return element
+            }
+            return ERROR
         }
-        in weight -> {
-            val indexIn = weight.indexOf(inputUnit) / 3
-            val indexOut = weight.indexOf(outputUnit) / 3
-            outputValue = inputValue * if (!inverse) weightValue[indexIn] else 1 / weightValue[indexOut]
-            iUnit = if (inputValue.isUnit()) weight[indexIn * 3 + 1] else weight[indexIn * 3]
-            oUnit = if (outputValue.isUnit()) weight[indexOut * 3 + 1] else weight[indexOut * 3]
+        fun convert(inputValue: Double, inputEnum: Units, outputEnum: Units, inverse: Boolean = false): Double {
+            var outputValue = 0.0
+            if (inputEnum.type == 'd' || inputEnum.type == 'w') {
+                outputValue = if (outputEnum == METER || outputEnum == GRAM) {
+                    inputValue * if (!inverse) inputEnum.value else 1.0 / inputEnum.value
+                } else {
+                    if (inputEnum.type == 'd') convert(inputValue * inputEnum.value, outputEnum, METER, true)
+                    else convert(inputValue * inputEnum.value, outputEnum, GRAM, true)
+                }
+            } else {
+                outputValue = when (inputEnum) {
+                    CELCIUS -> when (outputEnum) {
+                        KELVIN -> inputValue + 273.15
+                        FAHRENHEIT -> inputValue * 9 / 5 + 32
+                        else -> inputValue
+                    }
+                    FAHRENHEIT -> when (outputEnum) {
+                        KELVIN -> (inputValue + 459.67) * 5 / 9
+                        CELCIUS -> (inputValue - 32) * 5 / 9
+                        else -> inputValue
+                    }
+                    KELVIN -> when (outputEnum) {
+                        CELCIUS -> inputValue - 273.15
+                        FAHRENHEIT -> inputValue * 9 / 5 - 459.67
+                        else -> inputValue
+                    }
+                    else -> -1.0
+                }
+            }
+            return outputValue
         }
     }
-    return Data(inputValue, iUnit, outputValue, oUnit)
 }
 
 fun Double.isUnit() = this % 1 == 0.0 && this.toInt() == 1
-fun String.isMeter() = distance.subList(0, 3).contains(this)
-fun String.isGrams() = weight.subList(0, 3).contains(this)
 
 fun main() {
     loop@do {
         print("Enter what you want to convert (or exit): ")
         try {
-            val inputValue = s.next()
-            if (inputValue == "exit") break@loop
-            val inputUnit = s.next().toLowerCase()
-            s.next()
-            val outputUnit = s.next().toLowerCase()
+            val line = readLine()!!.split(" ")
 
-            if (outputUnit.isMeter() || outputUnit.isGrams()) {
-                convertUnit(inputValue.toDouble(), inputUnit, outputUnit).let {
-                    println("${it.inputValue} ${it.inputUnit} is ${it.outputValue} ${it.outputUnit}")
+            if (line[0] == "exit") break@loop
+
+            val inputValue = line[0].toDouble()
+
+            val inputEnum = Units.returnEnum((line[1] +
+                if (line[1].contains("degree", true)) {
+                    ' ' + line[2]
+                } else "").toLowerCase())
+
+            val outputEnum = Units.returnEnum((
+                if (line[line.lastIndex - 1].contains("degree", true)) {
+                    line[line.lastIndex - 1] + ' '
+                } else { "" } + line.last()).toLowerCase())
+
+            if (inputEnum == Units.ERROR || outputEnum == Units.ERROR || inputEnum.type != outputEnum.type) {
+                println("Conversion from ${inputEnum.names[0]} to ${outputEnum.names[0]} is impossible\n")
+                continue@loop
+            } else if (inputValue < 0) {
+                if (inputEnum.type == 'd') {
+                    println("Length shouldn't be negative\n")
+                    continue@loop
                 }
-            } else {
-                convertUnit(inputValue.toDouble(), inputUnit, "meters").let {
-                    convertUnit(it.outputValue, it.outputUnit, outputUnit, true). let{ it2 ->
-                        println("${it.inputValue} ${it.inputUnit} is ${it2.outputValue} ${it2.outputUnit}")
-                    }
+                else if (inputEnum.type == 'w') {
+                    println("Weight shouldn't be negative\n")
+                    continue@loop
                 }
             }
+
+            val outputValue = Units.convert(inputValue, inputEnum, outputEnum)
+            println("$inputValue ${if (inputValue.isUnit()) inputEnum.names[1] else inputEnum.names[0]} is " +
+                    "$outputValue ${if (outputValue.isUnit()) outputEnum.names[1] else outputEnum.names[0]}\n")
+
         } catch (e: Exception) {
-            println(e.message)
-            break@loop
+            println("Parse error\n")
         }
     } while (true)
 }
